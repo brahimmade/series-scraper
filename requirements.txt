@@ -1,0 +1,4 @@
+scrapy==1.5
+myjdapi==1.0.2
+plexapi==3.0.6
+pyyaml==3.12

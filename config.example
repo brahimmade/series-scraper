@@ -1,0 +1,25 @@
+# At first setup: Copy this file, enter configuration values and rename it to config.yaml
+# series configuration
+series:
+  # - name:                                   # Name of the TV series as it is called in Plex
+  #   link_suffix:                            # serienjunkies link suffix of the TV series
+
+
+# plex configuration (mandatory)
+plex:
+  username:                                   # Plex username
+  password:                                   # Plex password
+  server_name:                                # Plex server name
+
+# series provider configuration
+serienjunkies:
+  hoster: share-online                        # possible values: uploaded, share-online
+
+# item pipeline configuration (mandatory)
+item_pipelines:
+  myjdownloader:
+    email:                                    # MyJDownloader email
+    password:                                 # MyJDownloader password
+    device_name:                              # JDownloader device name (as configured in the JDownloader instance)
+    tvseries_dir:                             # Download directory for TV series
+    autostart_downloads: False                # automatically start downloads after grabbing links, possible values: True, False
