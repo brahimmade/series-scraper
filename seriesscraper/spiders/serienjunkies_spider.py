@@ -82,7 +82,7 @@ class SerienjunkiesSpider(scrapy.Spider):
         season_number = response.meta['season_number']
         episode_number = response.meta['episode_number']
 
-        hoster = 'share-online'
+        hoster = self.config['serienjunkies']['hoster']
 
         # get p-tags resembling the correct episodes and filter them by episode and quality
         fullhd_webdl_nodes = response.xpath(
