@@ -103,7 +103,7 @@ class SerienjunkiesSpider(scrapy.Spider):
                 a_nodes = [(a_node.css('::text').extract()[0], a_node.css('::attr(href)').extract()[0])
                            for a_node in
                            nodes.xpath(
-                               'child::a[./following-sibling::text()[contains(., \'{0}\')] and ./preceding-sibling::*[contains(., \'S{1:02d}E{2:02d}\')]]'.format(
+                               'child::a[./following-sibling::text()[1][contains(., \'{0}\')] and ./preceding-sibling::*[contains(., \'S{1:02d}E{2:02d}\')]]'.format(
                                    hoster, season_number, i))]
 
                 # if we couldn't find any download links for the current quality,
