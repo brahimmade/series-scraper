@@ -5,7 +5,9 @@ __config_file = '..\\config.yaml'
 
 
 def load_config(file: str = __config_file) -> dict:
-    import yaml, os
+    import yaml
+    import os
+
     file_dir = os.path.dirname(__file__)
     if not os.path.isfile(os.path.join(file_dir, file)) or os.path.getsize(os.path.join(file_dir, file)) == 0:
         logging.error('Please provide a configuration file before starting the crawler.')

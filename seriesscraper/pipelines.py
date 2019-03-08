@@ -7,7 +7,7 @@
 from myjdapi import myjdapi
 
 from seriesscraper.config import load_config
-from seriesscraper.items import SeriesEpisodeDownloadItem
+from seriesscraper.items import SeriesEpisodeItem
 
 
 class JDownloaderPipeline(object):
@@ -23,23 +23,21 @@ class JDownloaderPipeline(object):
         self.jd_device = self.jd.get_device(myjd_device)
 
     def process_item(self, item, spider):
-        assert isinstance(item, SeriesEpisodeDownloadItem)
+        assert isinstance(item, SeriesEpisodeItem)
 
         series_name = item['series_name']
-        season_number = '{num:02d}'.format(num=item['season_number'])
-        episode_number = '{num:02d}'.format(num=item['episode_number'])
-        download_link = item['download_link']
+        release_title, download_link = item['release_downloadlink_tuples'][0]
 
-        link_params = []
-        link_params.append({
+        link_params = [{
             'autostart': self.config['item_pipelines']['myjdownloader']['autostart_downloads'],
             'links': download_link,
-            'packageName': '{} S{}E{}'.format(series_name, season_number, episode_number),
+            'packageName': '{}'.format(release_title),
             'extractPassword': 'serienjunkies.org',
             'priority': 'DEFAULT',
             'downloadPassword': None,
-            'destinationFolder': '{}/{}'.format(self.config['item_pipelines']['myjdownloader']['tvseries_dir'], series_name),
+            'destinationFolder': '{}/{}'.format(self.config['item_pipelines']['myjdownloader']['tvseries_dir'],
+                                                series_name),
             'overwritePackagizerRules': True
-        })
+        }]
 
         self.jd_device.linkgrabber.add_links(link_params)

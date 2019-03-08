@@ -4,12 +4,11 @@ import scrapy
 from scrapy import signals
 
 from seriesscraper.config import load_config
-from seriesscraper.items import SeriesEpisodeDownloadItem
+from seriesscraper.items import SeriesEpisodeItem
 
-# TODO: Optimize season and episode search limit by fetching the latest episode from some kind of series guide website
-# Some arbitrary limit has to do for now. Will be a problem if a series has more than 15 seasons or more than 40 episodes.
-SEASON_SEARCH_LIMIT = 15
-EPISODE_SEARCH_LIMIT = 40
+
+# TODO: Refactor code to use Scrapy Item Loaders
+#       See https://docs.scrapy.org/en/latest/topics/loaders.html for further details.
 
 
 class SerienjunkiesSpider(scrapy.Spider):
@@ -25,108 +24,136 @@ class SerienjunkiesSpider(scrapy.Spider):
 
     def spider_opened(self, spider):
         from plexapi.myplex import MyPlexAccount
-        self.config = load_config()
+        spider.config = load_config()
 
-        plex_username = self.config['plex']['username']
-        plex_password = self.config['plex']['password']
-        plex_server = self.config['plex']['server_name']
+        # initialize plex connection
+        plex_username = spider.config['plex']['username']
+        plex_password = spider.config['plex']['password']
+        plex_server = spider.config['plex']['server_name']
 
         account = MyPlexAccount(plex_username, plex_password)
-        self.plex = account.resource(plex_server).connect()
+        spider.plex = account.resource(plex_server).connect()
+
+        # load i18 TODO: Refactor internationalization
+        crawl_language = spider.config['general']['language']
+        spider.season_regex_i18 = 'Season (\\d+)' if crawl_language == 'english' else 'Staffel (\\d+)'
 
     def parse(self, response):
         link = 'http://serienjunkies.org/serie/{}'
 
         for series in self.config['series']:
-            # get info of latest episode from plex
-            season_number, episode_number = get_latest_episode(self.plex, series_name=series['name'])
-            # extract next link from config
-            next_link = link.format(series['link_suffix'])
+            # build series link from link suffix in config
+            series_link = link.format(series['link_suffix'])
+            # get existing episodes of series from plex
+            existing_episodes = get_existing_episodes(self.plex, series_name=series['name'])
 
-            request = scrapy.Request(next_link, callback=self.parse_series_landing_page)  # build next request
-            # add season number and episode number to request for next callback
+            # build next request
+            request = scrapy.Request(series_link, callback=self.parse_series_landing_page)
+            # add series title and existing episodes to request for next callback
             request.meta['series'] = series
-            request.meta['season_number'] = season_number
-            request.meta['episode_number'] = episode_number
+            request.meta['existing_episodes'] = existing_episodes
             yield request
 
     def parse_series_landing_page(self, response):
-        # get season number and episode number from response
+        # get series title and existing episodes from response
         series = response.meta['series']
-        season_number = response.meta['season_number']
-        episode_number = response.meta['episode_number']
+        existing_episodes = response.meta['existing_episodes']
+        latest_episode = existing_episodes[-1]
 
-        # get a-tags resembling the season links
-        nodes = [(a_node.css('::text').extract()[0], a_node.css('::attr(href)').extract()[0])
-                 for a_node in response.css('#scb a')]
+        # retrieve season links from a-tags on the page
+        season_links = [(a_node.css('::text').extract()[0], a_node.css('::attr(href)').extract()[0])
+                        for a_node in response.css('#scb a')]
 
-        # filter english seasons
-        filtered_sorted_nodes = [(label, link) for (label, link) in nodes if re.search('Season', label)]
+        # filter links by language and extract season number from label
+        numbered_season_links_by_language = []
+        for label, link in season_links:
+            match = re.search(self.season_regex_i18, label)
+            if match:
+                numbered_season_links_by_language.append((int(match.group(1)), link))
 
-        for i in range(season_number, 15):
-            season = next(((label, link) for (label, link) in filtered_sorted_nodes if
-                           re.search('(\s{0}\s)|(\s{0}-{1}\s)|(\s{2}-{0}\s)'.format(i, i + 1, i - 1), label)), None)
-            if season is None:
-                continue
-
-            season_link = season[1]
+        # build next requests
+        for season_number, season_link in numbered_season_links_by_language:
             request = scrapy.Request(season_link, callback=self.parse_series_season)
-            # add season number and episode number to request for next callback
             request.meta['series'] = series
             request.meta['season_number'] = season_number
-            request.meta['episode_number'] = episode_number
+            request.meta['existing_episodes'] = existing_episodes
+
+            # skip seasons that are already present in library if only latest episodes is True
+            only_latest_episodes = self.config['general']['only_latest_episodes']
+            if only_latest_episodes and season_number < latest_episode['season_number']:
+                continue
+
             yield request
 
     def parse_series_season(self, response):
         series = response.meta['series']
-        season_number = response.meta['season_number']
-        episode_number = response.meta['episode_number']
+        existing_episodes = response.meta['existing_episodes']
 
+        latest_episode = existing_episodes[-1]
+
+        # retrieve p-tag container of correct episodes and filter them by episode and quality
+        hd_nodes = response.xpath('''
+        //p[position()>2 and not(@class) and not(contains(., \'Dauer\')) and 
+        (
+         ./strong/text()[contains(., \'1080p\') and contains(., \'WEB-DL\')] or
+         ./strong/text()[contains(., \'1080p\')] or
+         ./strong/text()[contains(., \'720p\') and contains(., \'WEB-DL\')] or
+         ./strong/text()[contains(., \'720p\')]
+        )]
+        ''')
+
+        # retrieve download links for configured hoster
         hoster = self.config['serienjunkies']['hoster']
+        crawl_results = [(node.xpath('preceding-sibling::strong[not(text()=\'Download:\')]/text()').extract()[0],
+                          node.css('::attr(href)').extract()[0])
+                         for node in hd_nodes.xpath('child::a[./following-sibling::text()[1][contains(., \'{0}\')]]'
+                                                    .format(hoster))]
 
-        # get p-tags resembling the correct episodes and filter them by episode and quality
-        fullhd_webdl_nodes = response.xpath(
-            '//p[position()>2 and not(@class) and not(contains(., \'Dauer\')) and ./strong/text()[contains(., \'1080p\') and contains(., \'WEB-DL\')]]')
-        fullhd_nodes = response.xpath(
-            '//p[position()>2 and not(@class) and not(contains(., \'Dauer\')) and ./strong/text()[contains(., \'1080p\')]]')
-        hdready_webdl_nodes = response.xpath(
-            '//p[position()>2 and not(@class) and not(contains(., \'Dauer\')) and ./strong/text()[contains(., \'720p\') and contains(., \'WEB-DL\')]]')
-        hdready_nodes = response.xpath(
-            '//p[position()>2 and not(@class) and not(contains(., \'Dauer\')) and ./strong/text()[contains(., \'720p\')]]')
+        # this is necessary because episodes are sorted by quality in ascending order but we want the best quality at
+        # the top of the list
+        crawl_results.reverse()
 
-        hd_nodes = [fullhd_webdl_nodes, fullhd_nodes, hdready_webdl_nodes, hdready_nodes]
+        # map crawl results to SeriesEpisodeItem and yield result
+        for release_title, download_link in crawl_results:
+            match = re.search('S(\\d{2})E(\\d{2})', release_title)
+            if not match:
+                continue
 
-        next_episode = episode_number + 1
-        for nodes in hd_nodes:
-            for i in range(next_episode, EPISODE_SEARCH_LIMIT):
-                # get a-tags resembling the download links
-                a_nodes = [(a_node.css('::text').extract()[0], a_node.css('::attr(href)').extract()[0])
-                           for a_node in
-                           nodes.xpath(
-                               'child::a[./following-sibling::text()[1][contains(., \'{0}\')] and ./preceding-sibling::*[contains(., \'S{1:02d}E{2:02d}\')]]'.format(
-                                   hoster, season_number, i))]
+            season_number = int(match.group(1))
+            episode_number = int(match.group(2))
+            downloadable_episode = SeriesEpisodeItem(series_name=series['name'], season_number=season_number,
+                                                     episode_number=episode_number,
+                                                     release_downloadlink_tuples=[(release_title, download_link) for
+                                                                                  release_title, download_link in
+                                                                                  crawl_results if
+                                                                                  re.search('S{0:02d}E{1:02d}'
+                                                                                            .format(season_number,
+                                                                                                    episode_number),
+                                                                                            release_title)])
 
-                # if we couldn't find any download links for the current quality,
-                # break from the current episode loop and continue the nodes loop
-                if not a_nodes:
-                    break
-                # else save the latest found episode and yield the result
-                else:
-                    next_episode = i + 1
-                    for a_node in a_nodes:  # we loop here just in case serienjunkies has multiple releases with the same quality
-                        yield SeriesEpisodeDownloadItem(series_name=series['name'], season_number=season_number,
-                                                        episode_number=i, download_link=a_node[1])
-
-            # if the next episode is above our maximum search limit, we have found every episode already, so we don't have to
-            # continue our search down the quality list
-            if next_episode == EPISODE_SEARCH_LIMIT + 1:
-                break
+            # only return result if:
+            # - the user wants to crawl every missing episode AND it's not in his library yet
+            # - the user only wants to crawl the latest episode AND it's newer than the latest existing episode
+            # in his library
+            only_latest_episodes = self.config['general']['only_latest_episodes']
+            if only_latest_episodes and downloadable_episode > latest_episode \
+                    or not only_latest_episodes and downloadable_episode not in existing_episodes:
+                yield downloadable_episode
 
 
-def get_latest_episode(plex, series_name: str) -> (int, int):
-    def split_season_episode(season_episode: str) -> (str, str):
-        return int(season_episode[1:-3]), int(season_episode[4:])
-
+def get_existing_episodes(plex, series_name: str) -> []:
+    """
+    Get existing episodes of a tv series from plex server database.
+    :param plex: Connection to plex server.
+    :param series_name: Name of the tv series
+    :return: List of existing episodes.
+    """
     series_episodes = plex.library.section('TV-Serien').get(series_name).episodes()
-    latest_episode = series_episodes[-1]
-    return split_season_episode(latest_episode.seasonEpisode)
+
+    season_episodes = [SeriesEpisodeItem(season_number=int(element.seasonEpisode[1:-3]),
+                                         episode_number=int(element.seasonEpisode[4:]),
+                                         series_name=element.grandparentTitle,
+                                         release_downloadlink_tuples=[])
+                       for element in series_episodes]
+
+    return season_episodes

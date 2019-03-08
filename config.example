@@ -1,4 +1,13 @@
 # At first setup: Copy this file, enter configuration values and rename it to config.yaml
+# general configuration settings
+general:
+  language: english                           # Language of TV series, possible values: german, english
+  only_latest_episodes: True                  # Setting for crawling strategy.
+                                              # - True: Crawler only extracts download links for episodes
+                                              #   that are newer than the latest episode in the Plex library
+                                              # - False: Crawler extracts download links for every episode missing
+                                              #   in the Plex library
+
 # series configuration
 series:
   # - name:                                   # Name of the TV series as it is called in Plex
