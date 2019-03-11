@@ -19,6 +19,7 @@ plex:
   username:                                   # Plex username
   password:                                   # Plex password
   server_name:                                # Plex server name
+  tv_library_name:                            # Name of TV library in Plex
 
 # series provider configuration
 serienjunkies:

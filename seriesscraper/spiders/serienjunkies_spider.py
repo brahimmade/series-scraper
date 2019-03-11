@@ -40,12 +40,13 @@ class SerienjunkiesSpider(scrapy.Spider):
 
     def parse(self, response):
         link = 'http://serienjunkies.org/serie/{}'
+        plex_tv_library_name = self.config['plex']['tv_library_name']
 
         for series in self.config['series']:
             # build series link from link suffix in config
             series_link = link.format(series['link_suffix'])
             # get existing episodes of series from plex
-            existing_episodes = get_existing_episodes(self.plex, series_name=series['name'])
+            existing_episodes = get_existing_episodes(self.plex, plex_tv_library_name, series_name=series['name'])
 
             # build next request
             request = scrapy.Request(series_link, callback=self.parse_series_landing_page)
@@ -141,14 +142,15 @@ class SerienjunkiesSpider(scrapy.Spider):
                 yield downloadable_episode
 
 
-def get_existing_episodes(plex, series_name: str) -> []:
+def get_existing_episodes(plex, tv_library_name: str, series_name: str) -> []:
     """
     Get existing episodes of a tv series from plex server database.
-    :param plex: Connection to plex server.
-    :param series_name: Name of the tv series
+    :param plex: Connection to Plex server.
+    :param tv_library_name: Name of the TV series library in Plex.
+    :param series_name: Name of the tv series.
     :return: List of existing episodes.
     """
-    series_episodes = plex.library.section('TV-Serien').get(series_name).episodes()
+    series_episodes = plex.library.section(tv_library_name).get(series_name).episodes()
 
     season_episodes = [SeriesEpisodeItem(season_number=int(element.seasonEpisode[1:-3]),
                                          episode_number=int(element.seasonEpisode[4:]),
