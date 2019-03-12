@@ -105,8 +105,9 @@ class SerienjunkiesSpider(scrapy.Spider):
 
         # retrieve download links for configured hoster
         hoster = self.config['serienjunkies']['hoster']
-        crawl_results = [(node.xpath('preceding-sibling::strong[not(text()=\'Download:\')]/text()').extract()[0],
-                          node.css('::attr(href)').extract()[0])
+        crawl_results = [(node.xpath('preceding-sibling::strong[not(text()=\'Download:\')]/text()')
+                          .extract()[0],  # release title
+                          node.css('::attr(href)').extract()[0])  # download link
                          for node in hd_nodes.xpath('child::a[./following-sibling::text()[1][contains(., \'{0}\')]]'
                                                     .format(hoster))]
 
@@ -114,28 +115,39 @@ class SerienjunkiesSpider(scrapy.Spider):
         # the top of the list
         crawl_results.reverse()
 
-        # map crawl results to SeriesEpisodeItem and yield result
+        # map crawl results to SeriesEpisodeItem
+        downloadable_episodes = {}  # dict for already mapped episodes
         for release_title, download_link in crawl_results:
+            # match release title against season episode pattern
             match = re.search('S(\\d{2})E(\\d{2})', release_title)
             if not match:
-                continue
+                continue  # release is not a season episode, skip result
 
+            # extract season number and episode number from release title
             season_number = int(match.group(1))
             episode_number = int(match.group(2))
-            downloadable_episode = SeriesEpisodeItem(series_name=series['name'], season_number=season_number,
-                                                     episode_number=episode_number,
-                                                     release_downloadlink_tuples=[(release_title, download_link) for
-                                                                                  release_title, download_link in
-                                                                                  crawl_results if
-                                                                                  re.search('S{0:02d}E{1:02d}'
-                                                                                            .format(season_number,
-                                                                                                    episode_number),
-                                                                                            release_title)])
+            # build season episode string that will be used as key in result dict
+            season_episode = '{}{}'.format(season_number, episode_number)
 
-            # only return result if:
-            # - the user wants to crawl every missing episode AND it's not in his library yet
-            # - the user only wants to crawl the latest episode AND it's newer than the latest existing episode
-            # in his library
+            # get existing episode item from result dict
+            downloadable_episode = downloadable_episodes.get(season_episode)
+            # if it doesn't exist yet, create new episode item if it doesn't exist yet and add it to result dict
+            if not downloadable_episode:
+                downloadable_episode = SeriesEpisodeItem(series_name=series['name'], season_number=season_number,
+                                                         episode_number=episode_number, release_downloadlink_tuples=[])
+                downloadable_episodes[season_episode] = downloadable_episode
+
+            # append crawl result to episode item
+            downloadable_episode['release_downloadlink_tuples'].append((release_title, download_link))
+
+        # TODO: Match complete seasons from crawl results against season pattern (S\\d{2}) if results are empty when
+        #  matching against season episode pattern
+
+        # yield results if:
+        # - the user wants to crawl every missing episode AND it's not in his library yet
+        # - the user only wants to crawl the latest episode AND it's newer than the latest existing episode
+        #   in his library
+        for downloadable_episode in downloadable_episodes.values():
             only_latest_episodes = self.config['general']['only_latest_episodes']
             if only_latest_episodes and downloadable_episode > latest_episode \
                     or not only_latest_episodes and downloadable_episode not in existing_episodes:
