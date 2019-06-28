@@ -2,7 +2,7 @@ import logging
 import sys
 from pathlib import Path
 
-from seriesscraper.config.model import SeriesConfigItem
+from seriesscraper.config.model import TvShowConfigItem
 from seriesscraper.singleton import Singleton
 
 
@@ -31,9 +31,9 @@ class Config:
     def get_only_latest_episodes(self) -> bool:
         return self.__config['general']['only_latest_episodes']
 
-    def get_series_items(self) -> [SeriesConfigItem]:
-        return [SeriesConfigItem(name=series['name'])
-                for series in self.__config['series']]
+    def get_tv_show_items(self) -> [TvShowConfigItem]:
+        return [TvShowConfigItem(name=tv_show['name'])
+                for tv_show in self.__config['tv_shows']]
 
     def get_plex_credentials(self) -> (str, str, str):
         return self.__config['plex']['username'], self.__config['plex']['password'], self.__config['plex'][
@@ -53,5 +53,5 @@ class Config:
     def get_jd_autostart_downloads(self) -> bool:
         return self.__config['item_pipelines']['myjdownloader']['autostart_downloads']
 
-    def get_jd_tv_series_dir(self) -> str:
-        return self.__config['item_pipelines']['myjdownloader']['tvseries_dir']
+    def get_jd_tv_show_dir(self) -> str:
+        return self.__config['item_pipelines']['myjdownloader']['tv_shows_dir']

@@ -19,7 +19,7 @@ class JDownloaderPipeline(object):
     def process_item(self, item, spider):
         assert isinstance(item, EpisodeItem)
 
-        series_name = item['series_name']
+        tv_show_name = item['tv_show_name']
         release_title, download_link = item['release_downloadlink_tuples'][0]
 
         jd_link = JdLink(
@@ -27,8 +27,8 @@ class JDownloaderPipeline(object):
             links=download_link,
             packageName='{}'.format(release_title),
             destinationFolder='{}/{}'.format(
-                self.__config.get_jd_tv_series_dir(),
-                series_name
+                self.__config.get_jd_tv_show_dir(),
+                tv_show_name
             ),
             extractPassword='serienjunkies.org'
         )

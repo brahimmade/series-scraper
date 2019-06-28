@@ -20,12 +20,12 @@ class Plex:
     def __load_variables_from(self, config):
         self.tv_library_name = config.get_plex_tv_library()
 
-    def get_existing_episodes_of(self, tv_series: str) -> [PlexEpisode]:
+    def get_existing_episodes_of(self, tv_show_name: str) -> [PlexEpisode]:
         """
-        Get existing episodes of a tv series.
-        :param tv_series: Name of the tv series.
+        Get existing episodes of a tv show.
+        :param tv_show_name: Name of the tv show.
         :return: List of existing episodes.
         """
         tv_library = self.plex.library.section(self.tv_library_name)
-        series = tv_library.search(title=tv_series, libtype='show').pop()
-        return series.episodes()
+        tv_show = tv_library.search(title=tv_show_name, libtype='show').pop()
+        return tv_show.episodes()

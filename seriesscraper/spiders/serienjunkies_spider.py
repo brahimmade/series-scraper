@@ -9,7 +9,7 @@ from plex.model import PlexEpisode
 #       See https://docs.scrapy.org/en/latest/topics/loaders.html for further details.
 from plex.plex import Plex
 from seriesscraper.config.config import Config
-from seriesscraper.config.model import SeriesConfigItem
+from seriesscraper.config.model import TvShowConfigItem
 from seriesscraper.items import EpisodeItem
 
 
@@ -41,23 +41,23 @@ class SerienjunkiesSpider(scrapy.Spider):
         spider.season_regex_i18 = 'Season (\\d+)' if crawl_language == 'english' else 'Staffel (\\d+)'
 
     def parse(self, response: Response):
-        def next_request(link: str, series_item: SeriesConfigItem) -> Request:
-            request = Request(link, self.parse_series_landing_page)
-            request.meta['series_item'] = series_item
+        def next_request(link: str, tv_show: TvShowConfigItem) -> Request:
+            request = Request(link, self.parse_tv_show_landing_page)
+            request.meta['tv_show'] = tv_show
             return request
 
-        for series_item in self.config.get_series_items():
-            series_link = self.__get_series_link_of(series_item, response)
-            yield next_request(series_link, series_item)
+        for tv_show_item in self.config.get_tv_show_items():
+            tv_show_link = self.__get_tv_show_link_of(tv_show_item, response)
+            yield next_request(tv_show_link, tv_show_item)
 
-    def __get_series_link_of(self, series_item: SeriesConfigItem, response: Response):
-        xpath_selector = '//li[contains(@class, "cat-item")]//a[text()="{}"]/@href'.format(series_item.name)
+    def __get_tv_show_link_of(self, tv_show: TvShowConfigItem, response: Response):
+        xpath_selector = '//li[contains(@class, "cat-item")]//a[text()="{}"]/@href'.format(tv_show.name)
         return response.xpath(xpath_selector).get()
 
-    def parse_series_landing_page(self, response):
-        # get series title and existing episodes from response
-        series: SeriesConfigItem = response.meta['series_item']
-        existing_episodes = self.__get_existing_episodes_as_episode_items_of(series)
+    def parse_tv_show_landing_page(self, response):
+        # get tv show title and existing episodes from response
+        tv_show: TvShowConfigItem = response.meta['tv_show']
+        existing_episodes = self.__get_existing_episodes_as_episode_items_of(tv_show)
         latest_episode = existing_episodes[-1]
 
         # retrieve season links from a-tags on the page
@@ -73,8 +73,8 @@ class SerienjunkiesSpider(scrapy.Spider):
 
         # build next requests
         for season_number, season_link in numbered_season_links_by_language:
-            request = scrapy.Request(season_link, callback=self.parse_series_season)
-            request.meta['series_item'] = series
+            request = scrapy.Request(season_link, callback=self.parse_tv_show_season)
+            request.meta['tv_show'] = tv_show
             request.meta['season_number'] = season_number
             request.meta['existing_episodes'] = existing_episodes
 
@@ -85,9 +85,9 @@ class SerienjunkiesSpider(scrapy.Spider):
 
             yield request
 
-    def __get_existing_episodes_as_episode_items_of(self, series: SeriesConfigItem):
+    def __get_existing_episodes_as_episode_items_of(self, tv_show: TvShowConfigItem):
         return self.__map_plex_episodes_to_episode_item(
-            self.plex.get_existing_episodes_of(series.name)
+            self.plex.get_existing_episodes_of(tv_show.name)
         )
 
     def __map_plex_episodes_to_episode_item(self, plex_episodes: [PlexEpisode]) -> [EpisodeItem]:
@@ -99,15 +99,15 @@ class SerienjunkiesSpider(scrapy.Spider):
 
         return [
             EpisodeItem(
-                series_name=plex_episode.grandparentTitle,
+                tv_show_name=plex_episode.grandparentTitle,
                 season_number=extract_season_number(plex_episode.seasonEpisode),
                 episode_number=extract_episode_number(plex_episode.seasonEpisode),
                 release_downloadlink_tuples=[]
             ) for plex_episode in plex_episodes
         ]
 
-    def parse_series_season(self, response):
-        series: SeriesConfigItem = response.meta['series_item']
+    def parse_tv_show_season(self, response):
+        tv_show: TvShowConfigItem = response.meta['tv_show']
         existing_episodes: [EpisodeItem] = response.meta['existing_episodes']
         latest_episode = existing_episodes[-1]
 
@@ -152,7 +152,7 @@ class SerienjunkiesSpider(scrapy.Spider):
             downloadable_episode = downloadable_episodes.get(season_episode)
             # if it doesn't exist yet, create new episode item if it doesn't exist yet and add it to result dict
             if not downloadable_episode:
-                downloadable_episode = EpisodeItem(series_name=series.name, season_number=season_number,
+                downloadable_episode = EpisodeItem(tv_show_name=tv_show.name, season_number=season_number,
                                                    episode_number=episode_number, release_downloadlink_tuples=[])
                 downloadable_episodes[season_episode] = downloadable_episode
 

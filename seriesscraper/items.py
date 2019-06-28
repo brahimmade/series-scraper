@@ -16,7 +16,7 @@ class SeriesscraperItem(scrapy.Item):
 
 
 class EpisodeItem(scrapy.Item):
-    series_name = scrapy.Field()
+    tv_show_name = scrapy.Field()
     season_number = scrapy.Field()
     episode_number = scrapy.Field()
     release_downloadlink_tuples = scrapy.Field()

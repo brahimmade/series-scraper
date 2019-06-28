@@ -1,16 +1,16 @@
 # At first setup: Copy this file, enter configuration values and rename it to config.yaml
 # general configuration settings
 general:
-  language: english                           # Language of TV series, possible values: german, english
+  language: english                           # Language of TV show, possible values: german, english
   only_latest_episodes: True                  # Setting for crawling strategy.
                                               # - True: Crawler only extracts download links for episodes
                                               #   that are newer than the latest episode in the Plex library
                                               # - False: Crawler extracts download links for every episode missing
                                               #   in the Plex library
 
-# series configuration
-series:
-  # - name:                                   # Name of the TV series as it is called in Plex
+# TV show configuration
+tv_shows:
+  # - name:                                   # Name of the TV show as it is called in Plex
 
 
 # plex configuration (mandatory)
@@ -20,7 +20,7 @@ plex:
   server_name:                                # Plex server name
   tv_library_name:                            # Name of TV library in Plex
 
-# series provider configuration
+# TV show provider configuration
 serienjunkies:
   hoster: share-online                        # possible values: uploaded, share-online
 
@@ -30,5 +30,5 @@ item_pipelines:
     email:                                    # MyJDownloader email
     password:                                 # MyJDownloader password
     device_name:                              # JDownloader device name (as configured in the JDownloader instance)
-    tvseries_dir:                             # Download directory for TV series
+    tv_shows_dir:                             # Download directory for TV series
     autostart_downloads: False                # automatically start downloads after grabbing links, possible values: True, False
