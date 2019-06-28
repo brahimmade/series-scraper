@@ -4,40 +4,33 @@
 #
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: https://doc.scrapy.org/en/latest/topics/item-pipeline.html
-from myjdapi import myjdapi
 
-from seriesscraper.config import load_config
-from seriesscraper.items import SeriesEpisodeItem
+from seriesscraper.config.config import Config
+from seriesscraper.items import EpisodeItem
+from seriesscraper.jdownloader.jd import Jd
+from seriesscraper.jdownloader.jdlink import JdLink
 
 
 class JDownloaderPipeline(object):
     def __init__(self):
-        self.config = load_config()
-
-        myjd_email = self.config['item_pipelines']['myjdownloader']['email']
-        myjd_password = self.config['item_pipelines']['myjdownloader']['password']
-        myjd_device = self.config['item_pipelines']['myjdownloader']['device_name']
-
-        self.jd = myjdapi.Myjdapi()
-        self.jd.connect(myjd_email, myjd_password)
-        self.jd_device = self.jd.get_device(myjd_device)
+        self.__config: Config = Config.instance()
+        self.__jd = Jd()
 
     def process_item(self, item, spider):
-        assert isinstance(item, SeriesEpisodeItem)
+        assert isinstance(item, EpisodeItem)
 
         series_name = item['series_name']
         release_title, download_link = item['release_downloadlink_tuples'][0]
 
-        link_params = [{
-            'autostart': self.config['item_pipelines']['myjdownloader']['autostart_downloads'],
-            'links': download_link,
-            'packageName': '{}'.format(release_title),
-            'extractPassword': 'serienjunkies.org',
-            'priority': 'DEFAULT',
-            'downloadPassword': None,
-            'destinationFolder': '{}/{}'.format(self.config['item_pipelines']['myjdownloader']['tvseries_dir'],
-                                                series_name),
-            'overwritePackagizerRules': True
-        }]
+        jd_link = JdLink(
+            autostart=self.__config.get_jd_autostart_downloads(),
+            links=download_link,
+            packageName='{}'.format(release_title),
+            destinationFolder='{}/{}'.format(
+                self.__config.get_jd_tv_series_dir(),
+                series_name
+            ),
+            extractPassword='serienjunkies.org'
+        )
 
-        self.jd_device.linkgrabber.add_links(link_params)
+        self.__jd.add_link(jd_link)

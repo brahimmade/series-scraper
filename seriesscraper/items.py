@@ -15,7 +15,7 @@ class SeriesscraperItem(scrapy.Item):
     pass
 
 
-class SeriesEpisodeItem(scrapy.Item):
+class EpisodeItem(scrapy.Item):
     series_name = scrapy.Field()
     season_number = scrapy.Field()
     episode_number = scrapy.Field()
