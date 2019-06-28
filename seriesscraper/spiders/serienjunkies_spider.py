@@ -9,7 +9,7 @@ from plex.model import PlexEpisode
 #       See https://docs.scrapy.org/en/latest/topics/loaders.html for further details.
 from plex.plex import Plex
 from seriesscraper.config.config import Config
-from seriesscraper.config.model import TvShowConfigItem
+from seriesscraper.config.model import TvShowConfigEntry
 from seriesscraper.items import EpisodeItem
 
 
@@ -41,22 +41,22 @@ class SerienjunkiesSpider(scrapy.Spider):
         spider.season_regex_i18 = 'Season (\\d+)' if crawl_language == 'english' else 'Staffel (\\d+)'
 
     def parse(self, response: Response):
-        def next_request(link: str, tv_show: TvShowConfigItem) -> Request:
+        def next_request(link: str, tv_show: TvShowConfigEntry) -> Request:
             request = Request(link, self.parse_tv_show_landing_page)
             request.meta['tv_show'] = tv_show
             return request
 
-        for tv_show_item in self.config.get_tv_show_items():
-            tv_show_link = self.__get_tv_show_link_of(tv_show_item, response)
-            yield next_request(tv_show_link, tv_show_item)
+        for tv_show in self.config.get_tv_shows():
+            tv_show_link = self.__get_tv_show_link_of(tv_show, response)
+            yield next_request(tv_show_link, tv_show)
 
-    def __get_tv_show_link_of(self, tv_show: TvShowConfigItem, response: Response):
+    def __get_tv_show_link_of(self, tv_show: TvShowConfigEntry, response: Response):
         xpath_selector = '//li[contains(@class, "cat-item")]//a[text()="{}"]/@href'.format(tv_show.name)
         return response.xpath(xpath_selector).get()
 
     def parse_tv_show_landing_page(self, response):
         # get tv show title and existing episodes from response
-        tv_show: TvShowConfigItem = response.meta['tv_show']
+        tv_show: TvShowConfigEntry = response.meta['tv_show']
         existing_episodes = self.__get_existing_episodes_as_episode_items_of(tv_show)
         latest_episode = existing_episodes[-1]
 
@@ -85,7 +85,7 @@ class SerienjunkiesSpider(scrapy.Spider):
 
             yield request
 
-    def __get_existing_episodes_as_episode_items_of(self, tv_show: TvShowConfigItem):
+    def __get_existing_episodes_as_episode_items_of(self, tv_show: TvShowConfigEntry):
         return self.__map_plex_episodes_to_episode_item(
             self.plex.get_existing_episodes_of(tv_show.name)
         )
@@ -107,7 +107,7 @@ class SerienjunkiesSpider(scrapy.Spider):
         ]
 
     def parse_tv_show_season(self, response):
-        tv_show: TvShowConfigItem = response.meta['tv_show']
+        tv_show: TvShowConfigEntry = response.meta['tv_show']
         existing_episodes: [EpisodeItem] = response.meta['existing_episodes']
         latest_episode = existing_episodes[-1]
 

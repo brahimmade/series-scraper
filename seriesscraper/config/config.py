@@ -2,7 +2,7 @@ import logging
 import sys
 from pathlib import Path
 
-from seriesscraper.config.model import TvShowConfigItem
+from seriesscraper.config.model import TvShowConfigEntry
 from seriesscraper.singleton import Singleton
 
 
@@ -31,8 +31,8 @@ class Config:
     def get_only_latest_episodes(self) -> bool:
         return self.__config['general']['only_latest_episodes']
 
-    def get_tv_show_items(self) -> [TvShowConfigItem]:
-        return [TvShowConfigItem(name=tv_show['name'])
+    def get_tv_shows(self) -> [TvShowConfigEntry]:
+        return [TvShowConfigEntry(name=tv_show['name'])
                 for tv_show in self.__config['tv_shows']]
 
     def get_plex_credentials(self) -> (str, str, str):
