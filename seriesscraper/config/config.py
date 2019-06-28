@@ -2,8 +2,8 @@ import logging
 import sys
 from pathlib import Path
 
+from seriesscraper.common.singleton import Singleton
 from seriesscraper.config.model import TvShowConfigEntry
-from seriesscraper.singleton import Singleton
 
 
 @Singleton
