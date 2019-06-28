@@ -1,4 +1,5 @@
 import re
+from enum import Enum
 
 import scrapy
 from scrapy import signals, Request
@@ -11,6 +12,11 @@ from plex.plex import Plex
 from seriesscraper.config.config import Config
 from seriesscraper.config.model import TvShowConfigEntry
 from seriesscraper.items import EpisodeItem
+
+
+class MetaItem(Enum):
+    TV_SHOW = 1
+    EXISTING_EPISODES = 2
 
 
 class SerienjunkiesSpider(scrapy.Spider):
@@ -43,7 +49,7 @@ class SerienjunkiesSpider(scrapy.Spider):
     def parse(self, response: Response):
         def next_request(link: str, tv_show: TvShowConfigEntry) -> Request:
             request = Request(link, self.parse_tv_show_landing_page)
-            request.meta['tv_show'] = tv_show
+            request.meta[MetaItem.TV_SHOW] = tv_show
             return request
 
         for tv_show in self.config.get_tv_shows():
@@ -56,7 +62,7 @@ class SerienjunkiesSpider(scrapy.Spider):
 
     def parse_tv_show_landing_page(self, response):
         # get tv show title and existing episodes from response
-        tv_show: TvShowConfigEntry = response.meta['tv_show']
+        tv_show: TvShowConfigEntry = response.meta[MetaItem.TV_SHOW]
         existing_episodes = self.__get_existing_episodes_as_episode_items_of(tv_show)
         latest_episode = existing_episodes[-1]
 
@@ -74,9 +80,8 @@ class SerienjunkiesSpider(scrapy.Spider):
         # build next requests
         for season_number, season_link in numbered_season_links_by_language:
             request = scrapy.Request(season_link, callback=self.parse_tv_show_season)
-            request.meta['tv_show'] = tv_show
-            request.meta['season_number'] = season_number
-            request.meta['existing_episodes'] = existing_episodes
+            request.meta[MetaItem.TV_SHOW] = tv_show
+            request.meta[MetaItem.EXISTING_EPISODES] = existing_episodes
 
             # skip seasons that are already present in library if only latest episodes is True
             only_latest_episodes = self.config.get_only_latest_episodes()
@@ -107,8 +112,8 @@ class SerienjunkiesSpider(scrapy.Spider):
         ]
 
     def parse_tv_show_season(self, response):
-        tv_show: TvShowConfigEntry = response.meta['tv_show']
-        existing_episodes: [EpisodeItem] = response.meta['existing_episodes']
+        tv_show: TvShowConfigEntry = response.meta[MetaItem.TV_SHOW]
+        existing_episodes: [EpisodeItem] = response.meta[MetaItem.EXISTING_EPISODES]
         latest_episode = existing_episodes[-1]
 
         # retrieve p-tag container of correct episodes and filter them by episode and quality
