@@ -49,19 +49,39 @@ class SerienjunkiesSpider(scrapy.Spider):
     def parse(self, response: Response):
         for tv_show in self.config.get_tv_shows():
             tv_show_link = self.__crawl_tv_show_link_of(tv_show, response)
+            existing_episodes = self.__get_existing_episodes_as_episode_items_of(tv_show)
             yield self.__next_request(link=tv_show_link,
                                       callback=self.parse_tv_show_landing_page,
-                                      tv_show=tv_show)
+                                      tv_show=tv_show,
+                                      existing_episodes=existing_episodes)
 
     def __crawl_tv_show_link_of(self, tv_show: TvShowConfigEntry, response: Response):
         xpath_selector = '//li[contains(@class, "cat-item")]//a[text()="{}"]/@href'.format(tv_show.name)
         return response.xpath(xpath_selector).get()
 
+    def __get_existing_episodes_as_episode_items_of(self, tv_show: TvShowConfigEntry):
+        return self.__map_plex_episodes_to_episode_item(
+            self.plex.get_existing_episodes_of(tv_show.name)
+        )
+
+    def __map_plex_episodes_to_episode_item(self, plex_episodes: [PlexEpisode]) -> [EpisodeItem]:
+        def extract_season_number(season_episode: str) -> int:
+            return int(season_episode[1:-3])
+
+        def extract_episode_number(season_episode: str) -> int:
+            return int(season_episode[4:])
+
+        return [
+            EpisodeItem(
+                tv_show_name=plex_episode.grandparentTitle,
+                season_number=extract_season_number(plex_episode.seasonEpisode),
+                episode_number=extract_episode_number(plex_episode.seasonEpisode),
+                release_downloadlink_tuples=[]
+            ) for plex_episode in plex_episodes
+        ]
+
     def parse_tv_show_landing_page(self, response):
-        # get tv show title and existing episodes from response
-        tv_show: TvShowConfigEntry = response.meta[MetaItem.TV_SHOW]
-        existing_episodes = self.__get_existing_episodes_as_episode_items_of(tv_show)
-        latest_episode = existing_episodes[-1]
+        tv_show, existing_episodes, latest_episode = self.__extract_meta_info_from(response)
 
         # retrieve season links from a-tags on the page
         season_links = [(a_node.css('::text').extract()[0], a_node.css('::attr(href)').extract()[0])
@@ -86,31 +106,8 @@ class SerienjunkiesSpider(scrapy.Spider):
                                       tv_show=tv_show,
                                       existing_episodes=existing_episodes)
 
-    def __get_existing_episodes_as_episode_items_of(self, tv_show: TvShowConfigEntry):
-        return self.__map_plex_episodes_to_episode_item(
-            self.plex.get_existing_episodes_of(tv_show.name)
-        )
-
-    def __map_plex_episodes_to_episode_item(self, plex_episodes: [PlexEpisode]) -> [EpisodeItem]:
-        def extract_season_number(season_episode: str) -> int:
-            return int(season_episode[1:-3])
-
-        def extract_episode_number(season_episode: str) -> int:
-            return int(season_episode[4:])
-
-        return [
-            EpisodeItem(
-                tv_show_name=plex_episode.grandparentTitle,
-                season_number=extract_season_number(plex_episode.seasonEpisode),
-                episode_number=extract_episode_number(plex_episode.seasonEpisode),
-                release_downloadlink_tuples=[]
-            ) for plex_episode in plex_episodes
-        ]
-
     def parse_tv_show_season(self, response):
-        tv_show: TvShowConfigEntry = response.meta[MetaItem.TV_SHOW]
-        existing_episodes: [EpisodeItem] = response.meta[MetaItem.EXISTING_EPISODES]
-        latest_episode = existing_episodes[-1]
+        tv_show, existing_episodes, latest_episode = self.__extract_meta_info_from(response)
 
         # retrieve p-tag container of correct episodes and filter them by episode and quality
         hd_nodes = response.xpath('''
@@ -181,3 +178,10 @@ class SerienjunkiesSpider(scrapy.Spider):
         request.meta[MetaItem.TV_SHOW] = tv_show
         request.meta[MetaItem.EXISTING_EPISODES] = existing_episodes
         return request
+
+    def __extract_meta_info_from(self, response: Response) -> (TvShowConfigEntry, [EpisodeItem], EpisodeItem):
+        tv_show = response.meta[MetaItem.TV_SHOW]
+        existing_episodes = response.meta[MetaItem.EXISTING_EPISODES]
+        latest_episode = existing_episodes[-1] if existing_episodes else None
+
+        return tv_show, existing_episodes, latest_episode
