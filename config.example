@@ -10,7 +10,7 @@ general:
 
 # TV show configuration
 tv_shows:
-  # - name:                                   # Name of the TV show as it is called in Plex
+  # - name:                                   # Name of the TV show as it is called on http://serienjunkies.org/serien/?cat=0&showall
 
 
 # plex configuration (mandatory)
