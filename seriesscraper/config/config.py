@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 from common.singleton import Singleton
-from seriesscraper.config.model import TvShowConfigEntry
+from seriesscraper.config.model import TvShowConfig, LanguageConfig
 
 
 @Singleton
@@ -25,14 +25,15 @@ class Config:
             content = yaml.load(file_handle)  # throws YAMLError
             return content
 
-    def get_language(self) -> str:
-        return self.__config['general']['language']
+    def get_language(self) -> LanguageConfig:
+        language_setting = self.__config['general']['language']
+        return LanguageConfig.ENGLISH if language_setting == 'english' else LanguageConfig.GERMAN
 
     def get_only_latest_episodes(self) -> bool:
         return self.__config['general']['only_latest_episodes']
 
-    def get_tv_shows(self) -> [TvShowConfigEntry]:
-        return [TvShowConfigEntry(name=tv_show['name'])
+    def get_tv_shows(self) -> [TvShowConfig]:
+        return [TvShowConfig(name=tv_show['name'])
                 for tv_show in self.__config['tv_shows']]
 
     def get_plex_credentials(self) -> (str, str, str):
