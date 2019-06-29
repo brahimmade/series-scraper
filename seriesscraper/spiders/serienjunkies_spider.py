@@ -47,16 +47,13 @@ class SerienjunkiesSpider(scrapy.Spider):
         spider.season_regex_i18 = 'Season (\\d+)' if crawl_language == 'english' else 'Staffel (\\d+)'
 
     def parse(self, response: Response):
-        def next_request(link: str, tv_show: TvShowConfigEntry) -> Request:
-            request = Request(link, self.parse_tv_show_landing_page)
-            request.meta[MetaItem.TV_SHOW] = tv_show
-            return request
-
         for tv_show in self.config.get_tv_shows():
-            tv_show_link = self.__get_tv_show_link_of(tv_show, response)
-            yield next_request(tv_show_link, tv_show)
+            tv_show_link = self.__crawl_tv_show_link_of(tv_show, response)
+            yield self.__next_request(link=tv_show_link,
+                                      callback=self.parse_tv_show_landing_page,
+                                      tv_show=tv_show)
 
-    def __get_tv_show_link_of(self, tv_show: TvShowConfigEntry, response: Response):
+    def __crawl_tv_show_link_of(self, tv_show: TvShowConfigEntry, response: Response):
         xpath_selector = '//li[contains(@class, "cat-item")]//a[text()="{}"]/@href'.format(tv_show.name)
         return response.xpath(xpath_selector).get()
 
@@ -79,16 +76,15 @@ class SerienjunkiesSpider(scrapy.Spider):
 
         # build next requests
         for season_number, season_link in numbered_season_links_by_language:
-            request = scrapy.Request(season_link, callback=self.parse_tv_show_season)
-            request.meta[MetaItem.TV_SHOW] = tv_show
-            request.meta[MetaItem.EXISTING_EPISODES] = existing_episodes
-
             # skip seasons that are already present in library if only latest episodes is True
             only_latest_episodes = self.config.get_only_latest_episodes()
             if only_latest_episodes and season_number < latest_episode['season_number'] - 1:
                 continue
 
-            yield request
+            yield self.__next_request(link=season_link,
+                                      callback=self.parse_tv_show_season,
+                                      tv_show=tv_show,
+                                      existing_episodes=existing_episodes)
 
     def __get_existing_episodes_as_episode_items_of(self, tv_show: TvShowConfigEntry):
         return self.__map_plex_episodes_to_episode_item(
@@ -176,3 +172,12 @@ class SerienjunkiesSpider(scrapy.Spider):
             if only_latest_episodes and downloadable_episode > latest_episode \
                     or not only_latest_episodes and downloadable_episode not in existing_episodes:
                 yield downloadable_episode
+
+    def __next_request(self, link: str,
+                       callback,
+                       tv_show: TvShowConfigEntry,
+                       existing_episodes: [EpisodeItem] = None) -> Request:
+        request = scrapy.Request(link, callback=callback)
+        request.meta[MetaItem.TV_SHOW] = tv_show
+        request.meta[MetaItem.EXISTING_EPISODES] = existing_episodes
+        return request
