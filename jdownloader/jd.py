@@ -2,8 +2,8 @@ from dataclasses import asdict
 
 from myjdapi import myjdapi
 
+from jdownloader.jdlink import JdLink
 from seriesscraper.config.config import Config
-from seriesscraper.jdownloader.jdlink import JdLink
 
 
 class Jd:
